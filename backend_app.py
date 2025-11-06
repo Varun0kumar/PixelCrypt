@@ -5,6 +5,7 @@ from crypto_vault import encrypt_message
 from crypto_vault import decrypt_message
 
 app = Flask(__name__)
+attempt_tracker = {}
 
 # Health check
 @app.route('/api/health', methods=['GET'])
@@ -57,13 +58,29 @@ def decode_secret():
     filepath = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(filepath)
 
+    key = file.filename
+    attempt_tracker.setdefault(key, 0)
+
     hidden_data = decode_png(filepath)
     try:
         secret = decrypt_message(hidden_data, password)
+        attempt_tracker[key] = 0  # reset on success
+        return {'secret': secret}
     except Exception:
-        return {'error': 'Incorrect password or corrupted file'}, 403
-
-    return {'secret': secret}
+        attempt_tracker[key] += 1
+        if attempt_tracker[key] == 2:
+            return {
+                'error': 'Incorrect password. Warning: Last attempt remaining. If failed, file will be corrupted.'
+            }, 403
+        elif attempt_tracker[key] >= 3:
+            os.remove(filepath)
+            return {
+                'error': 'File has been corrupted due to multiple failed password attempts.'
+            }, 403
+        else:
+            return {
+                'error': f'Incorrect password. Attempt {attempt_tracker[key]} of 3.'
+            }, 403
 # Status route
 @app.route('/api/status', methods=['GET'])
 def status():
