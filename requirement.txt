@@ -1,0 +1,18 @@
+Core Web Framework
+
+Flask==3.1.0
+Werkzeug==3.0.1
+flask-cors==4.0.0
+
+Production Server (Required for Deployment)
+gunicorn==21.2.0
+
+Image Processing
+Pillow==10.2.0
+
+Cryptography
+pycryptodome==3.20.0
+
+Video/Audio Processing
+opencv-python==4.9.0.80
+numpy==1.26.4
