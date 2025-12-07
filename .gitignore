@@ -1,0 +1,43 @@
+# --- System & IDE Files ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# --- Python (Backend) ---
+backend/venv/
+backend/env/
+backend/__pycache__/
+*.py[cod]
+*.so
+
+# --- Node.js (Frontend) ---
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Project Specific (Data & Secrets) ---
+# Ignore all uploaded and processed media
+backend/uploads/*
+backend/processed/*
+backend/processed_test_outputs/*
+backend/test_results/*
+
+# SECURITY: Never commit keys or secrets!
+*.pem
+*.key
+*.env
+pixelcrypt_keys.zip
+
+# Keep the folder structure, but ignore files inside
+# (You can create an empty .gitkeep file inside these folders if you want to track the folder itself)
+!backend/uploads/.gitkeep
+!backend/processed/.gitkeep
