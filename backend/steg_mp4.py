@@ -1,117 +1,61 @@
-import subprocess
 import os
-from backend.steg_wav import encode_wav, decode_wav
-# Note: Importing the NEW hybrid functions
-from backend.crypto_vault import encrypt_hybrid, decrypt_hybrid
+import subprocess
+import shutil
+from steg_wav import encode_wav, decode_wav
+from crypto_vault import encrypt_hybrid, decrypt_hybrid
 
-# ----------------------------------------
-# Helper Functions
-# ----------------------------------------
-def extract_audio_from_mp4(mp4_path, wav_path):
-    """Extracts audio from MP4. Injects silent audio if none exists."""
-    probe = subprocess.run(["ffmpeg", "-i", mp4_path], stderr=subprocess.PIPE, text=True, shell=True)
-    has_audio = "Audio:" in probe.stderr
+def check_ffmpeg():
+    if shutil.which("ffmpeg") is None:
+        raise RuntimeError("FFmpeg not found. Install it and add to PATH.")
 
-    if not has_audio:
-        print("⚠️ No audio stream found. Injecting silent audio...")
-        silent_mp4 = mp4_path.replace(".mp4", "_temp_silent.mp4")
-        inject_cmd = [
-            "ffmpeg", "-y", "-i", mp4_path,
-            "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-            "-shortest", "-c:v", "copy", "-c:a", "aac", silent_mp4
-        ]
-        subprocess.run(inject_cmd, check=True, shell=True)
-        # Extract from the new silent file
-        extract_cmd = ["ffmpeg", "-y", "-i", silent_mp4, "-vn", "-acodec", "pcm_s16le", wav_path]
-        subprocess.run(extract_cmd, check=True, shell=True)
-        return silent_mp4
+def encode_mp4(video_path, secret, public_key_bytes):
+    check_ffmpeg()
+    base_dir = os.path.dirname(video_path)
+    base_name = os.path.splitext(os.path.basename(video_path))[0]
     
-    extract_cmd = ["ffmpeg", "-y", "-i", mp4_path, "-vn", "-acodec", "pcm_s16le", wav_path]
-    subprocess.run(extract_cmd, check=True, shell=True)
-    return mp4_path
-
-def replace_audio_in_mp4(original_mp4, encoded_wav, output_mp4):
-    """Replaces audio in MP4 with encoded WAV using Lossless Codec & Privacy Shield."""
-    cmd = [
-        "ffmpeg", "-y", "-i", original_mp4, "-i", encoded_wav,
-        "-c:v", "copy", 
-        "-map", "0:v:0", 
-        "-map", "1:a:0", 
-        "-c:a", "alac", 
-        "-map_metadata", "-1", # PRIVACY SHIELD
-        output_mp4
-    ]
-    subprocess.run(cmd, check=True, shell=True)
-
-# ----------------------------------------
-# Main Encode Function (Public Key)
-# ----------------------------------------
-def encode_mp4(mp4_path, secret, public_key_pem):
-    base_dir = os.path.dirname(mp4_path)
-    base_name = os.path.splitext(os.path.basename(mp4_path))[0]
+    temp_audio = os.path.join(base_dir, f"{base_name}_temp.wav")
+    temp_steg = os.path.join(base_dir, f"{base_name}_steg.wav")
+    output = os.path.join(base_dir, f"{base_name}_encoded.mp4")
     
-    temp_audio_path = os.path.join(base_dir, "temp_audio_extract.wav")
-    generated_wav_path = None 
-    working_mp4 = mp4_path
-    
-    output_mp4 = os.path.join(base_dir, f"encoded_{base_name}.mp4")
-
     try:
-        # 1. Extract Audio
-        working_mp4 = extract_audio_from_mp4(mp4_path, temp_audio_path)
+        # 1. Encrypt
+        encrypted = encrypt_hybrid(secret, public_key_bytes)
 
-        # 2. Encrypt with RSA Hybrid (Returns String)
-        encrypted_string = encrypt_hybrid(secret, public_key_pem)
-        data_bytes = encrypted_string.encode('utf-8')
-
-        # 3. Encode into Audio (Expects Bytes)
-        generated_wav_path = encode_wav(temp_audio_path, data_bytes)
+        # 2. Extract Audio (or generate silence)
+        subprocess.run(["ffmpeg", "-y", "-i", video_path, "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", temp_audio], 
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
-        # 4. Merge
-        replace_audio_in_mp4(working_mp4, generated_wav_path, output_mp4)
+        if not os.path.exists(temp_audio) or os.path.getsize(temp_audio) < 1000:
+            subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", "10", "-f", "wav", temp_audio],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        return output_mp4
+        # 3. Embed
+        steg_buf = encode_wav(temp_audio, encrypted)
+        with open(temp_steg, "wb") as f: f.write(steg_buf.getbuffer())
 
+        # 4. Merge (Use ALAC for lossless audio)
+        subprocess.run(["ffmpeg", "-y", "-i", video_path, "-i", temp_steg, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "alac", output],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        with open(output, "rb") as f: return f.read()
     finally:
-        # Cleanup
-        files = [temp_audio_path]
-        if generated_wav_path: files.append(generated_wav_path)
-        if working_mp4 != mp4_path: files.append(working_mp4)
-        
-        for f in files:
-            if f and os.path.exists(f):
-                try: os.remove(f)
+        for f in [temp_audio, temp_steg, output]:
+            if os.path.exists(f): 
+                try: os.remove(f) 
                 except: pass
 
-# ----------------------------------------
-# Main Decode Function (Private Key)
-# ----------------------------------------
-def decode_mp4(mp4_path, private_key_pem):
-    base_dir = os.path.dirname(mp4_path)
-    temp_audio_path = os.path.join(base_dir, "temp_decode_audio.wav")
-    working_mp4 = mp4_path
-
+def decode_mp4(video_path, private_key_bytes):
+    check_ffmpeg()
+    temp_audio = video_path + ".temp.wav"
     try:
-        working_mp4 = extract_audio_from_mp4(mp4_path, temp_audio_path)
-        
-        # Decode (Returns Bytes)
-        hidden_bytes = decode_wav(temp_audio_path)
+        # 1. Extract
+        subprocess.run(["ffmpeg", "-y", "-i", video_path, "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", temp_audio],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # 2. Decode & Decrypt
+        hidden_bytes = decode_wav(temp_audio)
         if not hidden_bytes: return None
-
-        # Convert to String for Decryption
-        hidden_string = hidden_bytes.rstrip(b'\x00').decode('utf-8')
-        
-        # Decrypt with RSA Hybrid
-        secret = decrypt_hybrid(hidden_string, private_key_pem)
-        return secret
-    except Exception as e:
-        print(f"Video Decryption failed: {e}")
-        return None
+        return decrypt_hybrid(hidden_bytes, private_key_bytes)
     finally:
-        # Cleanup
-        files = [temp_audio_path]
-        if working_mp4 != mp4_path: files.append(working_mp4)
-        for f in files:
-            if f and os.path.exists(f):
-                try: os.remove(f)
-                except: pass
+        if os.path.exists(temp_audio): 
+            try: os.remove(temp_audio)
+            except: pass

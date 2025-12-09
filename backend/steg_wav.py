@@ -1,74 +1,40 @@
 import wave
-import os
+import io
 
-def encode_wav(filepath, secret_data: bytes):
-    """
-    Hides raw bytes (secret_data) inside a WAV file.
-    """
-    try:
-        audio = wave.open(filepath, mode='rb')
-        frame_bytes = bytearray(list(audio.readframes(audio.getnframes())))
-        audio.close()
-    except Exception as e:
-        print(f"Error opening WAV file: {e}")
-        raise
+def encode_wav(filepath, data_bytes):
+    with wave.open(filepath, 'rb') as audio:
+        frames = bytearray(list(audio.readframes(audio.getnframes())))
+        params = audio.getparams()
 
-    delimiter = b"###"
-    if isinstance(secret_data, str):
-        secret_data = secret_data.encode('utf-8')
+    length = len(data_bytes)
+    full_payload = length.to_bytes(4, 'big') + data_bytes
+    bits = ''.join(f'{byte:08b}' for byte in full_payload)
 
-    data_to_hide = secret_data + delimiter
-    bits = ''.join([format(byte, '08b') for byte in data_to_hide])
+    if len(bits) > len(frames): raise ValueError("Audio too short.")
 
-    if len(bits) > len(frame_bytes):
-        raise ValueError("Error: Data to hide is larger than the audio file capacity.")
+    for i, bit in enumerate(bits):
+        frames[i] = (frames[i] & 0xFE) | int(bit)
 
-    for i in range(len(bits)):
-        frame_bytes[i] = (frame_bytes[i] & 254) | int(bits[i])
-
-    # Avoid "file_encoded.wav_encoded.wav" chains.
-    # Just append _encoded once.
-    if filepath.endswith("_encoded.wav"):
-        encoded_path = filepath 
-    else:
-        encoded_path = filepath.replace(".wav", "_encoded.wav")
-        
-    try:
-        with wave.open(encoded_path, 'wb') as encoded:
-            encoded.setparams(audio.getparams())
-            encoded.writeframes(bytes(frame_bytes))
-    except Exception as e:
-        print(f"Error writing encoded WAV file: {e}")
-        raise
-        
-    return encoded_path
+    output = io.BytesIO()
+    with wave.open(output, 'wb') as new_audio:
+        new_audio.setparams(params)
+        new_audio.writeframes(frames)
+    output.seek(0)
+    return output
 
 def decode_wav(filepath):
-    """
-    Extracts raw bytes from a WAV file until a delimiter is found.
-    """
-    try:
-        audio = wave.open(filepath, mode='rb')
-        frame_bytes = bytearray(list(audio.readframes(audio.getnframes())))
-        audio.close()
-    except Exception as e:
-        print(f"Error opening WAV file for decoding: {e}")
-        raise
+    with wave.open(filepath, 'rb') as audio:
+        frames = bytearray(list(audio.readframes(audio.getnframes())))
 
-    extracted_bytes = bytearray()
-    binary_string = ""
-    delimiter = b"###"
+    bits = [str(b & 1) for b in frames]
+    len_bits = "".join(bits[:32])
+    if not len_bits: return None
+    length = int(len_bits, 2)
     
-    for i in range(len(frame_bytes)):
-        binary_string += str(frame_bytes[i] & 1)
-        if len(binary_string) == 8:
-            try:
-                byte = int(binary_string, 2)
-                extracted_bytes.append(byte)
-                binary_string = ""
-                if extracted_bytes.endswith(delimiter):
-                    return bytes(extracted_bytes[:-len(delimiter)])
-            except Exception:
-                binary_string = ""
-    
-    return None
+    if length > len(frames) // 8: return None
+
+    data_bits = "".join(bits[32 : 32 + (length * 8)])
+    data_bytes = bytearray()
+    for i in range(0, len(data_bits), 8):
+        data_bytes.append(int(data_bits[i:i+8], 2))
+    return bytes(data_bytes)
