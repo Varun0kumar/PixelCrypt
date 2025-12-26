@@ -14,7 +14,7 @@ import {
 
 // --- INLINED DEPENDENCIES ---
 
-const API_URL = "http://localhost:5000"; 
+import { API_URL } from "../utils/validation";
 
 // Firebase Configuration
 const firebaseConfig = {
