@@ -73,7 +73,7 @@ const SignupPage = ({ onNavigate, onSignup }) => {
       await sendEmailVerification(userCredential.user);
       await signOut(auth); // <--- CRITICAL SECURITY STEP
 
-      setInfoMsg(`Verification link sent to ${email}. You must verify before logging in.`);
+      setInfoMsg(`Verification link sent to ${email}. You must verify before logging in.check your spam folder too!`);
       
       // Redirect to Login Page so they can login AFTER verifying
       setTimeout(() => {
