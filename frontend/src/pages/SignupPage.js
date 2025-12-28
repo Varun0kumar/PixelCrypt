@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { UserPlus, Mail, Lock, AlertTriangle, Fingerprint, Cpu, ShieldCheck, Chrome, Github, Shield } from 'lucide-react';
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, GithubAuthProvider, sendEmailVerification, signOut } from "firebase/auth";
+import MatrixBackground from "../components/MatrixBackground";
 
 // --- FIREBASE CONFIG (Same as Login) ---
 const firebaseConfig = {
@@ -16,16 +17,7 @@ const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 const githubProvider = new GithubAuthProvider();
 
-// CyberBackground Component
-const CyberBackground = () => (
-  <div className="fixed inset-0 z-0 pointer-events-none">
-    <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-black"></div>
-    <div className="absolute top-0 left-0 right-0 h-[500px] bg-green-500/5 blur-[120px] rounded-full mix-blend-screen"></div>
-    <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-emerald-500/5 blur-[120px] rounded-full mix-blend-screen"></div>
-    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10"></div>
-    <div className="absolute inset-0 bg-[linear-gradient(rgba(16,185,129,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.03)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_70%,transparent_100%)]"></div>
-  </div>
-);
+
 
 const SignupPage = ({ onNavigate, onSignup }) => {
   const [email, setEmail] = useState('');
@@ -112,7 +104,7 @@ const SignupPage = ({ onNavigate, onSignup }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 font-mono relative overflow-hidden bg-black text-green-500">
-      <CyberBackground />
+      <MatrixBackground /> 
       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
 
       <div className="w-full max-w-md bg-black/90 border-2 border-green-500/50 rounded-xl p-8 shadow-[0_0_50px_rgba(34,197,94,0.2)] relative z-10 backdrop-blur-md">

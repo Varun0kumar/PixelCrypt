@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import MatrixBackground from "../components/MatrixBackground";
 
 // --- FIREBASE CONFIG (Keep your keys) ---
 const firebaseConfig = {
@@ -19,16 +20,6 @@ const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 const githubProvider = new GithubAuthProvider();
 
-// CyberBackground Component
-const CyberBackground = () => (
-  <div className="fixed inset-0 z-0 pointer-events-none">
-    <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-black"></div>
-    <div className="absolute top-0 left-0 right-0 h-[500px] bg-green-500/5 blur-[120px] rounded-full mix-blend-screen"></div>
-    <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-emerald-500/5 blur-[120px] rounded-full mix-blend-screen"></div>
-    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10"></div>
-    <div className="absolute inset-0 bg-[linear-gradient(rgba(16,185,129,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.03)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_70%,transparent_100%)]"></div>
-  </div>
-);
 
 const LoginPage = ({ onNavigate, onLogin }) => {
   const [email, setEmail] = useState('');
@@ -37,17 +28,21 @@ const LoginPage = ({ onNavigate, onLogin }) => {
   const [isLoading, setIsLoading] = useState(false);
   
   // Backdoor state
-  const [ghostClicks, setGhostClicks] = useState(0);
-
+  const ghostClicksRef = React.useRef(0);
+  const [, forceUpdate] = useState(0);
+  
   const handleGhostClick = async () => {
-    const newCount = ghostClicks + 1;
-    setGhostClicks(newCount);
-    
-    if (newCount === 10) {
-        try { await signOut(auth); } catch (e) {}
-        onLogin({ email: "ghost_operator@classified.sys" }); // Bypass
-    }
-  };
+  ghostClicksRef.current += 1;
+  forceUpdate(n => n + 1); // UI refresh only
+
+  if (ghostClicksRef.current === 10) {
+    try { await signOut(auth); } catch (e) {}
+    onLogin({
+      email: "ghost_operator@classified.sys",
+      bypass: true
+    });
+  }
+};
 
   const handleEmailLogin = async (e) => {
     e.preventDefault();
@@ -103,10 +98,10 @@ const LoginPage = ({ onNavigate, onLogin }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 font-mono relative overflow-hidden bg-black text-green-500">
-      <CyberBackground />
+      <MatrixBackground />
       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
 
-      {ghostClicks >= 10 && (
+      {ghostClicksRef.current >= 10 && ( 
         <div className="fixed inset-0 bg-green-500 z-50 animate-ping opacity-20 pointer-events-none"></div>
       )}
 
@@ -115,10 +110,10 @@ const LoginPage = ({ onNavigate, onLogin }) => {
         <div className="text-center mb-8">
           <div
             onClick={handleGhostClick}
-            className="inline-flex p-4 bg-green-900/20 rounded-full mb-4 border border-green-500 animate-pulse cursor-pointer select-none active:scale-95 transition-transform hover:bg-green-500/20"
+            className="relative z-20 inline-flex p-4 bg-green-900/20 rounded-full mb-4 border border-green-500 animate-pulse cursor-pointer select-none active:scale-95 transition-transform hover:bg-green-500/20"
             title="System Monitor"
           >
-            <Ghost size={40} className={`text-green-500 ${ghostClicks > 0 ? 'text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.8)]' : ''}`} />
+            <Ghost size={40} className={`text-green-500 ${ghostClicksRef.current > 0 ? 'text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.8)]' : ''}`} />
           </div>
           <h1 className="text-3xl font-bold text-white tracking-widest">PIXEL<span className="text-green-500">CRYPT</span></h1>
           <p className="text-green-500/60 text-[10px] uppercase tracking-[0.4em] mt-2">Secure Gateway v1.0</p>
@@ -163,7 +158,7 @@ const LoginPage = ({ onNavigate, onLogin }) => {
 
           <button type="submit" disabled={isLoading} className="w-full bg-green-900/20 hover:bg-green-500/20 text-green-400 hover:text-white border border-green-500 font-bold py-3.5 rounded-none transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-xs group">
             {isLoading ? <Cpu className="animate-spin" /> : <LogIn size={16} className="group-hover:translate-x-1 transition-transform" />}
-            {isLoading ? (ghostClicks > 7 ? 'Bypassing...' : 'Authenticating...') : 'Initialize Session'}
+            {isLoading ? (ghostClicksRef.current >= 10 ? 'Bypassing...' : 'Authenticating...') : 'Initialize Session'}
           </button>
         </form>
 
