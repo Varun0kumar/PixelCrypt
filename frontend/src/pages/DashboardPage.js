@@ -1,3 +1,4 @@
+//dashboard.js
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { 
   Lock, Unlock, Key, Image as ImageIcon, Music, Video, 
@@ -11,6 +12,7 @@ import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { 
   getFirestore, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp 
 } from "firebase/firestore";
+import MatrixBackground from "../components/MatrixBackground";
 
 // --- INLINED DEPENDENCIES ---
 
@@ -28,18 +30,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app); 
-
-// --- MEMOIZED COMPONENTS ---
-
-const CyberBackground = memo(() => (
-  <div className="fixed inset-0 z-0 pointer-events-none">
-    <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-black"></div>
-    <div className="absolute top-0 left-0 right-0 h-[500px] bg-green-500/5 blur-[120px] rounded-full mix-blend-screen"></div>
-    <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-emerald-500/5 blur-[120px] rounded-full mix-blend-screen"></div>
-    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10"></div>
-    <div className="absolute inset-0 bg-[linear-gradient(rgba(16,185,129,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.03)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_70%,transparent_100%)]"></div>
-  </div>
-));
 
 // --- HELPERS ---
 
@@ -163,7 +153,7 @@ const HelpModal = memo(({ onClose, darkMode }) => {
                 <li>Select your media type (Image, Audio, or Video).</li>
                 <li>Ensure you are in <strong>ENCODE</strong> mode.</li>
                 <li>Upload the <strong>Source File</strong> you want to hide data in.</li>
-                <li>Upload the <strong>Public Key</strong>.</li>
+                <li>Upload the <strong>Public Key of the recipient</strong>.</li>
                 <li>Type your secret message and click <strong>Execute Encryption</strong>.</li>
             </ol>
           </div>
@@ -174,7 +164,7 @@ const HelpModal = memo(({ onClose, darkMode }) => {
             </h3>
             <ol className="space-y-2 text-sm ml-8 list-decimal marker:text-slate-500 opacity-80">
                 <li>Switch to <strong>DECODE</strong> mode.</li>
-                <li>Upload the <strong>Encoded File</strong> (the one you just created).</li>
+                <li>Upload the <strong>Encoded File.</strong></li>
                 <li>Upload your <strong>Private Key</strong>.</li>
                 <li>Click <strong>Execute Decryption</strong> to reveal the hidden message.</li>
             </ol>
@@ -185,7 +175,7 @@ const HelpModal = memo(({ onClose, darkMode }) => {
             <div>
                 <h3 className="text-red-500 font-black text-xl uppercase tracking-wider mb-2">STOP & READ THIS!</h3>
                 <p className={`${theme.title} font-bold mb-1 text-sm`}>YOUR PRIVATE KEY IS YOUR SECRET IDENTITY.</p>
-                <p className="text-xs text-red-400">Do not share your <code>private_key.pem</code> with anyone. If you lose it, your encrypted data is lost forever.</p>
+                <p className="text-xs text-red-400">Do not share your <code>private_key.pem</code> with anyone. If you lose it, your encrypted data is lost forever.<br></br>Share only your <code>public_key.pem</code> to use this application.</p>
             </div>
           </div>
 
@@ -456,25 +446,81 @@ const DashboardPage = ({ onLogout }) => {
     } finally { setIsLoading(false); }
   };
 
-  const renderNavButton = (id, label, Icon) => (
-    <button onClick={() => resetState(id)} className={`flex items-center gap-2 px-6 py-3 rounded-t-lg font-medium transition-all duration-300 ${activeTab === id ? (darkMode ? 'bg-slate-800/80 text-green-400 border-t-2 border-green-400' : 'bg-white text-green-600 border-t-2 border-green-500 shadow-sm') : (darkMode ? 'bg-slate-900/40 text-slate-500 hover:bg-slate-800' : 'bg-slate-200/50 text-slate-500 hover:bg-slate-200')}`}>
-      <Icon size={18} /> {label}
-    </button>
-  );
+ const renderNavButton = (id, label, Icon) => (
+  <button
+    onClick={() => resetState(id)}
+    className={`flex items-center gap-2 px-6 py-3 rounded-t-lg font-medium transition-all duration-300 border backdrop-blur-sm ${
+      activeTab === id
+        ? darkMode
+          ? 'bg-slate-800/90 text-green-400 border-green-400 shadow-[0_0_10px_rgba(34,197,94,0.45)]'
+          : 'bg-white text-green-700 border-green-500 shadow-md'
+        : darkMode
+          ? 'bg-slate-900/70 text-slate-400 border-green-500/40 hover:bg-slate-800/80 hover:text-green-400'
+          : 'bg-white/70 text-slate-600 border-green-300 hover:bg-white'
+    }`}
+  >
+    <Icon size={18} />
+    {label}
+  </button>
+);
 
   const capacityTotal = capacity?.max_chars ?? 0;
   const percentUsed = capacityTotal > 0 ? Math.min((secretBytes / capacityTotal) * 100, 100) : 0;
   const capacityDisplay = isCapLoading ? 'Calculating...' : (capacityTotal > 0 ? `${secretBytes} / ${capacityTotal} bytes` : '---');
   const showResultPanel = status.msg || (mode === 'decode' && secret);
 
- const theme = { bg: darkMode ? 'bg-slate-900 text-slate-200' : 'bg-emerald-50 text-slate-800', header: darkMode ? 'bg-black/40 border-slate-800/50' : 'bg-emerald-100/60 border-emerald-200 shadow-sm', card: darkMode ? 'bg-slate-900/60 border-slate-700/50' : 'bg-white/90 border-emerald-200 shadow-lg ring-1 ring-emerald-50', input: darkMode ? 'bg-slate-900/50 border-slate-700 text-slate-200' : 'bg-white border-emerald-200 text-slate-800', inputPlaceholder: darkMode ? 'placeholder:text-slate-600' : 'placeholder:text-slate-400', modeBtn: darkMode ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700' : 'bg-white text-orange-600 shadow-sm hover:bg-emerald-50', titleMain: darkMode ? 'text-white' : 'text-slate-900' };
+ const theme = { bg: darkMode ? 'bg-slate-900 text-slate-200' : 'bg-emerald-50 text-slate-800', header: darkMode ? 'bg-black/40 border-slate-800/50' : 'bg-emerald-100/60 border-emerald-200 shadow-sm', card: darkMode
+  ? 'bg-slate-900/80 border-slate-700/60 backdrop-blur-md'
+  : 'bg-white/95 border-emerald-300 shadow-xl ring-1 ring-emerald-100',
+ input: darkMode ? 'bg-slate-900/50 border-slate-700 text-slate-200' : 'bg-white border-emerald-200 text-slate-800', inputPlaceholder: darkMode ? 'placeholder:text-slate-600' : 'placeholder:text-slate-400', modeBtn: darkMode ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700' : 'bg-white text-orange-600 shadow-sm hover:bg-emerald-50', titleMain: darkMode ? 'text-white' : 'text-slate-900' };
 
 
-  return (
-    <div className={`min-h-screen font-sans p-4 md:p-8 relative transition-colors duration-500 ${theme.bg}`}>
-      {darkMode && <CyberBackground />}
-      {!darkMode && <div className="absolute inset-0 bg-emerald-50 -z-10"></div>}
+return (
+  <>
+    {/* ================= GLOBAL BACKGROUND ================= */}
 
+    {darkMode ? (
+      <>
+        {/* Dark mode: Matrix background */}
+        <MatrixBackground className="opacity-15 blur-[1px]" />
+
+        {/* Dark glass overlay */}
+        <div className="fixed inset-0 bg-black/70 z-[-2]" />
+
+        {/* Subtle cyber glow */}
+        <div className="fixed -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[700px] bg-green-500/10 blur-[180px] rounded-full z-[-1]" />
+      </>
+    ) : (
+      <>
+        {/* Light mode: fixed image background */}
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            backgroundImage: "url('/pixelcrypt-light-bg.png')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+            filter: "blur(1px)",
+            transform: "scale(1.1)",
+            zIndex: -2 
+          }}
+        />
+
+        {/* White glass overlay for readability */}
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(255,255,255,0.1)",
+            zIndex: -1
+          }}
+        />
+      </>
+    )}
       
       <div className="max-w-6xl mx-auto relative z-10">
         <header className={`mb-8 flex flex-col md:flex-row items-center justify-between p-4 rounded-2xl border backdrop-blur-md gap-4 transition-colors duration-300 ${theme.header}`}>
@@ -500,7 +546,13 @@ const DashboardPage = ({ onLogout }) => {
         {showAuthor && <AuthorModal onClose={() => setShowAuthor(false)} darkMode={darkMode} />}
         {showUserProfile && <UserProfileModal user={currentUser} onClose={() => setShowUserProfile(false)} darkMode={darkMode} />}
 
-        <div className={`flex border-b mb-0 px-4 overflow-x-auto ${darkMode ? 'border-slate-700/50' : 'border-slate-200'}`}>
+        <div
+  className={`inline-flex border-b mb-0 px-4 overflow-x-auto backdrop-blur-sm ${
+    darkMode
+      ? 'bg-slate-900/70 border-slate-700/60'
+      : 'bg-white/70 border-slate-200'
+  }`}
+>
           {renderNavButton('image', 'Image', ImageIcon)}
           {renderNavButton('audio', 'Audio', Music)}
           {renderNavButton('video', 'Video', Video)}
@@ -576,9 +628,9 @@ const DashboardPage = ({ onLogout }) => {
                     </div>
                 </div>
                 <div className="absolute inset-0 h-full w-full rotate-y-180 backface-hidden z-20">
-                     <div className={`rounded-b-2xl rounded-tr-2xl p-4 md:p-8 border backdrop-blur-xl shadow-2xl h-full transition-colors duration-300 ${theme.card}`}>
-                        <HistoryPanel history={opHistory} darkMode={darkMode} onClose={() => setShowHistory(false)} />
-                     </div>
+                      <div className={`rounded-b-2xl rounded-tr-2xl p-4 md:p-8 border backdrop-blur-xl shadow-2xl h-full transition-colors duration-300 ${theme.card}`}>
+                         <HistoryPanel history={opHistory} darkMode={darkMode} onClose={() => setShowHistory(false)} />
+                      </div>
                 </div>
             </div>
         </div>
@@ -589,7 +641,7 @@ const DashboardPage = ({ onLogout }) => {
         .backface-hidden { backface-visibility: hidden; }
         .rotate-y-180 { transform: rotateY(180deg); }
       `}</style>
-    </div>
+    </>
   );
 };
 
